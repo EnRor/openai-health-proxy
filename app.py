@@ -36,7 +36,9 @@ def health_check():
     return "🤖 HealthMate AI is live", 200
 
 def send_reminder_after_delay(delay_minutes, user_id, message):
-    time.sleep(delay_minutes * 60)
+    print(f"Фоновый поток запущен: напоминание через {delay_minutes} минут для пользователя {user_id}")
+
+    time.sleep(delay_minutes * 60)  # Задержка перед отправкой
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -53,12 +55,13 @@ def send_reminder_after_delay(delay_minutes, user_id, message):
     except Exception as e:
         print(f"Исключение при отправке напоминания: {e}")
 
+
 @app.route("/schedule_reminder", methods=["POST"])
 def schedule_reminder():
     data = request.json
 
     try:
-        delay_minutes = int(data.get("delay_minutes", 60))
+        delay_minutes = int(data.get("delay_minutes", "60"))
     except (ValueError, TypeError):
         return jsonify({"error": "delay_minutes должно быть числом"}), 400
 
