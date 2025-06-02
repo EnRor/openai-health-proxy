@@ -3,11 +3,12 @@ import openai
 import os
 import threading
 import time
+import requests  # добавлено
 
 app = Flask(__name__)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # добавлено
 
 @app.route("/", methods=["POST"])
 def handle_request():
@@ -30,20 +31,27 @@ def handle_request():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/", methods=["GET"])
 def health_check():
     return "🤖 HealthMate AI is live", 200
 
-
 def send_reminder_after_delay(delay_minutes, user_id, message):
-    # Функция, которая запускается в отдельном потоке и ждёт delay_minutes, затем выполняет действие
     time.sleep(delay_minutes * 60)
-    # Здесь должна быть логика отправки уведомления пользователю с user_id
-    # В простом примере — просто логируем
-    print(f"Отправлено напоминание пользователю {user_id}: {message}")
-    # Если есть интеграция с Suvvy или другим сервисом — сюда добавьте вызов API для отправки сообщения
 
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": user_id,
+        "text": message
+    }
+
+    try:
+        resp = requests.post(url, json=payload)
+        if resp.status_code != 200:
+            print(f"Ошибка отправки напоминания: {resp.text}")
+        else:
+            print(f"Отправлено напоминание пользователю {user_id}: {message}")
+    except Exception as e:
+        print(f"Исключение при отправке напоминания: {e}")
 
 @app.route("/schedule_reminder", methods=["POST"])
 def schedule_reminder():
@@ -60,7 +68,6 @@ def schedule_reminder():
     if not user_id:
         return jsonify({"error": "user_id обязателен"}), 400
 
-    # Запускаем фоновый поток с таймером
     thread = threading.Thread(target=send_reminder_after_delay, args=(delay_minutes, user_id, message))
     thread.daemon = True
     thread.start()
@@ -68,7 +75,6 @@ def schedule_reminder():
     print(f"Запланировано напоминание для пользователя {user_id} через {delay_minutes} минут с сообщением: {message}")
 
     return jsonify({"status": "success", "message": "Напоминание запланировано"}), 200
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
