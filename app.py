@@ -36,9 +36,11 @@ def health_check():
     return "🤖 HealthMate AI is live", 200
 
 def send_reminder_after_delay(delay_minutes, user_id, message):
-    print(f"Фоновый поток запущен: напоминание через {delay_minutes} минут для пользователя {user_id}")
+    print(f"[INFO] Фоновый поток запущен: напоминание через {delay_minutes} минут для пользователя {user_id}")
 
-    time.sleep(delay_minutes * 60)  # Задержка перед отправкой
+    time.sleep(delay_minutes * 60)
+
+    print(f"[INFO] Время вышло. Отправка напоминания пользователю {user_id}: {message}")
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -48,12 +50,14 @@ def send_reminder_after_delay(delay_minutes, user_id, message):
 
     try:
         resp = requests.post(url, json=payload)
-        if resp.status_code != 200:
-            print(f"Ошибка отправки напоминания: {resp.text}")
+        if resp.status_code == 200:
+            print(f"[SUCCESS] Напоминание успешно отправлено пользователю {user_id}")
         else:
-            print(f"Отправлено напоминание пользователю {user_id}: {message}")
+            print(f"[ERROR] Ошибка отправки напоминания: статус {resp.status_code}, ответ: {resp.text}")
     except Exception as e:
-        print(f"Исключение при отправке напоминания: {e}")
+        print(f"[EXCEPTION] Исключение при отправке напоминания: {e}")
+
+    print(f"[INFO] Фоновый поток для пользователя {user_id} завершён")
 
 
 @app.route("/schedule_reminder", methods=["POST"])
