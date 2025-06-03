@@ -1,14 +1,19 @@
 from flask import Flask, request, jsonify
 import openai
 import os
-import threading
-import time
-import requests  # добавлено
+import requests
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # добавлено
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Инициализация планировщика
+scheduler = BackgroundScheduler()
+scheduler.start()
+print("[INFO] Планировщик APScheduler запущен")
 
 @app.route("/", methods=["POST"])
 def handle_request():
@@ -35,21 +40,13 @@ def handle_request():
 def health_check():
     return "🤖 HealthMate AI is live", 200
 
-def send_reminder_after_delay(delay_minutes, user_id, message):
-    print(f"[DEBUG] Запуск фонового потока для user_id={user_id} с задержкой {delay_minutes} минут")
-
-    print(f"[INFO] Фоновый поток запущен: напоминание через {delay_minutes} минут для пользователя {user_id}")
-
-    time.sleep(delay_minutes * 60)
-
-    print(f"[INFO] Время вышло. Отправка напоминания пользователю {user_id}: {message}")
-
+def send_reminder(user_id, message):
+    print(f"[INFO] Отправка напоминания пользователю {user_id}: {message}")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": user_id,
         "text": message
     }
-
     try:
         resp = requests.post(url, json=payload)
         if resp.status_code == 200:
@@ -59,13 +56,9 @@ def send_reminder_after_delay(delay_minutes, user_id, message):
     except Exception as e:
         print(f"[EXCEPTION] Исключение при отправке напоминания: {e}")
 
-    print(f"[INFO] Фоновый поток для пользователя {user_id} завершён")
-
-
 @app.route("/schedule_reminder", methods=["POST"])
 def schedule_reminder():
     data = request.json
-
     try:
         delay_minutes = int(data.get("delay_minutes", "60"))
     except (ValueError, TypeError):
@@ -77,11 +70,19 @@ def schedule_reminder():
     if not user_id:
         return jsonify({"error": "user_id обязателен"}), 400
 
-    thread = threading.Thread(target=send_reminder_after_delay, args=(delay_minutes, user_id, message))
-    thread.daemon = True
-    thread.start()
+    run_time = datetime.now() + timedelta(minutes=delay_minutes)
+    job_id = f"reminder_{user_id}_{datetime.now().timestamp()}"
 
-    print(f"Запланировано напоминание для пользователя {user_id} через {delay_minutes} минут с сообщением: {message}")
+    scheduler.add_job(
+        func=send_reminder,
+        trigger="date",
+        run_date=run_time,
+        args=[user_id, message],
+        id=job_id,
+        replace_existing=True
+    )
+
+    print(f"[SCHEDULER] Задача {job_id} добавлена: user_id={user_id}, задержка={delay_minutes} минут, сообщение='{message}'")
 
     return jsonify({"status": "success", "message": "Напоминание запланировано"}), 200
 
