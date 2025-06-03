@@ -15,6 +15,7 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 print("[INFO] Планировщик APScheduler запущен")
 
+
 @app.route("/", methods=["POST"])
 def handle_request():
     print("[OPENAI DEBUG] Получен POST-запрос на /")
@@ -38,9 +39,11 @@ def handle_request():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/", methods=["GET"])
 def health_check():
     return "🤖 HealthMate AI is live", 200
+
 
 def send_reminder(user_id, message):
     print(f"[INFO] Отправка напоминания пользователю {user_id}: {message}")
@@ -57,6 +60,7 @@ def send_reminder(user_id, message):
             print(f"[ERROR] Ошибка отправки напоминания: статус {resp.status_code}, ответ: {resp.text}")
     except Exception as e:
         print(f"[EXCEPTION] Исключение при отправке напоминания: {e}")
+
 
 @app.route("/schedule_reminder", methods=["POST"])
 def schedule_reminder():
@@ -87,6 +91,52 @@ def schedule_reminder():
     print(f"[SCHEDULER] Задача {job_id} добавлена: user_id={user_id}, задержка={delay_minutes} минут, сообщение='{message}'")
 
     return jsonify({"status": "success", "message": "Напоминание запланировано"}), 200
+
+
+# --- Новый эндпоинт для абсолютного времени напоминания ---
+@app.route("/schedule_reminder_absolute", methods=["POST"])
+def schedule_reminder_absolute():
+    data = request.json
+
+    user_id = data.get("user_id")
+    reminder_time_str = data.get("reminder_time_absolute")
+    reminder_message = data.get("reminder_message", "Напоминание от HealthMate AI!")
+    user_local_time_str = data.get("user_local_time")
+
+    # Проверка обязательных параметров
+    if not user_id or not reminder_time_str or not user_local_time_str:
+        return jsonify({"error": "user_id, reminder_time_absolute и user_local_time обязательны"}), 400
+
+    # Парсим время в datetime.time объекты
+    try:
+        reminder_time = datetime.strptime(reminder_time_str, "%H:%M").time()
+        user_local_time = datetime.strptime(user_local_time_str, "%H:%M").time()
+    except ValueError:
+        return jsonify({"error": "Время должно быть в формате ЧЧ:ММ"}), 400
+
+    now = datetime.now()
+    reminder_dt = datetime.combine(now.date(), reminder_time)
+    user_local_dt = datetime.combine(now.date(), user_local_time)
+
+    delay = (reminder_dt - user_local_dt).total_seconds() / 60
+    if delay < 0:
+        delay += 24 * 60  # Переносим на следующий день
+
+    job_id = f"reminder_abs_{user_id}_{datetime.now().timestamp()}"
+
+    scheduler.add_job(
+        func=send_reminder,
+        trigger="date",
+        run_date=datetime.now() + timedelta(minutes=delay),
+        args=[user_id, reminder_message],
+        id=job_id,
+        replace_existing=True
+    )
+
+    print(f"[SCHEDULER] Абсолютное напоминание {job_id} запланировано через {delay:.1f} минут.")
+
+    return jsonify({"status": "success", "message": f"Напоминание запланировано через {int(delay)} минут."}), 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
