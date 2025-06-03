@@ -36,6 +36,8 @@ def health_check():
     return "🤖 HealthMate AI is live", 200
 
 def send_reminder_after_delay(delay_minutes, user_id, message):
+    print(f"[DEBUG] Запуск фонового потока для user_id={user_id} с задержкой {delay_minutes} минут")
+
     print(f"[INFO] Фоновый поток запущен: напоминание через {delay_minutes} минут для пользователя {user_id}")
 
     time.sleep(delay_minutes * 60)
