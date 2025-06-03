@@ -18,6 +18,7 @@ print("[INFO] Планировщик APScheduler запущен")
 @app.route("/", methods=["POST"])
 def handle_request():
     print("[OPENAI DEBUG] Получен POST-запрос на /")
+    print(f"[OPENAI DEBUG] JSON тела запроса: {request.json}")
     data = request.json
     user_info = data.get("user_info", "No user data provided.")
 
